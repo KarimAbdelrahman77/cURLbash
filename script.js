@@ -22,19 +22,35 @@ function handleFile(event) {
 
 function extractHeadersFromCurl(content) {
     const headers = [];
-    const regex = /-(?:H|h)\s+['"]([^'"]+)['"]/g;
+
+    // Match -H or -h followed by quoted OR unquoted argument
+    const regex = /-(?:H|h)\s+(?:['"]([^'"]+)['"]|([^\s\\]+))/g;
+
     let match;
-
     while ((match = regex.exec(content)) !== null) {
-        const headerLine = match[1];
+        const headerLine = match[1] || match[2];
+        if (!headerLine || !headerLine.includes(":")) continue;
 
-        if (headerLine.includes(":")) {
-            const [name, ...rest] = headerLine.split(":");
-            headers.push({
-                name: name.trim(),
-                value: rest.join(":").trim()
-            });
+        const colonIndex = headerLine.indexOf(":");
+        const name = headerLine.substring(0, colonIndex).trim();
+        let remainder = headerLine.substring(colonIndex + 1).trim();
+
+        let value;
+
+        // ✅ NEW RULE: if value starts with a double quote, capture quoted value
+        if (remainder.startsWith('"')) {
+            const closingQuoteIndex = remainder.indexOf('"', 1);
+            if (closingQuoteIndex !== -1) {
+                value = remainder.substring(0, closingQuoteIndex + 1);
+            } else {
+                // unmatched quote → take everything
+                value = remainder;
+            }
+        } else {
+            value = remainder;
         }
+
+        headers.push({ name, value });
     }
 
     return headers;
